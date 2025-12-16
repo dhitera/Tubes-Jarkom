@@ -2,6 +2,7 @@ import socket
 import time
 import argparse
 import threading
+import webbrowser
 
 BUFFER_SIZE = 4096
 DEFAULT_HTTP_PORT = 8080
@@ -39,6 +40,8 @@ def http_client(ip, port, path, client_id):
         with open(filename, "wb") as f:
             f.write(body)
 
+        webbrowser.open(filename)
+
         print(f"[Client {client_id}] HTML disimpan ke {filename}")
         print(f"[Client {client_id}] Waktu {time.time() - start:.4f}s")
 
@@ -47,8 +50,11 @@ def http_client(ip, port, path, client_id):
 
 
 def udp_client(ip, port, client_id, count, size, interval):
-    sent = received = 0
+    sent = 0
+    received = 0
     rtts = []
+
+    start_total = time.time()
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.settimeout(2)
@@ -56,6 +62,7 @@ def udp_client(ip, port, client_id, count, size, interval):
         for i in range(count):
             payload = f"{client_id}-{i}".encode().ljust(size, b"x")
             sent_time = time.time()
+
             s.sendto(payload, (ip, port))
             sent += 1
 
@@ -68,14 +75,26 @@ def udp_client(ip, port, client_id, count, size, interval):
 
             time.sleep(interval)
 
+    end_total = time.time()
+    total_time = end_total - start_total
+
     loss = (sent - received) / sent * 100 if sent else 0
     avg_rtt = sum(rtts) / len(rtts) if rtts else 0
 
+    jitters = []
+    for i in range(1, len(rtts)):
+        jitters.append(abs(rtts[i] - rtts[i - 1]))
+    avg_jitter = sum(jitters) / len(jitters) if jitters else 0
+
+    throughput = (received * size) / total_time if total_time > 0 else 0
+
     print(f"[Client {client_id}] UDP Result")
-    print(f"  Sent      : {sent}")
-    print(f"  Received  : {received}")
-    print(f"  Loss      : {loss:.2f}%")
-    print(f"  Avg RTT   : {avg_rtt * 1000:.2f} ms")
+    print(f"  Sent        : {sent}")
+    print(f"  Received    : {received}")
+    print(f"  Packet Loss : {loss:.2f}%")
+    print(f"  Avg RTT     : {avg_rtt * 1000:.2f} ms")
+    print(f"  Jitter      : {avg_jitter * 1000:.2f} ms")
+    print(f"  Throughput  : {throughput:.2f} B/s")
 
 
 def main():
